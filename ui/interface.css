@@ -76,11 +76,19 @@ Screen {
     margin: 1 0;
 }
 
+.error_text {
+    color: #ff4444;
+    width: 100%;
+    text-align: center;
+    margin-top: 1;
+}
+
 #audio_info {
     width: 100%;
     text-align: center;
     color: #888;
     margin-top: 1;
+    height: auto;
 }
 
 #download_video, #download_audio {

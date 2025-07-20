@@ -11,7 +11,6 @@ def get_config():
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             config = json.load(f)
-            
             if "download_path" not in config:
                 config["download_path"] = str(DEFAULT_DOWNLOAD_PATH)
             return config

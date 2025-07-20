@@ -24,11 +24,10 @@ def log_download(url: str, title: str, format_note: str, success: bool):
         "status": "✅ Успешно" if success else "❌ Ошибка"
     }
     
-    history.insert(0, new_entry) 
+    history.insert(0, new_entry)
     
     try:
         with open(HISTORY_FILE, "w", encoding="utf-8") as f:
             json.dump(history, f, ensure_ascii=False, indent=4)
     except IOError as e:
-        
         print(f"Не удалось записать историю: {e}")

@@ -73,8 +73,8 @@ class FormatScreen(Screen):
         self.info = info
         self.url = info.get("webpage_url")
         self.downloader = Downloader()
-        self.video_formats, self.audio_formats = self.downloader.get_filtered_formats(info)
-        self.selected_video_id = self.video_formats[0]['id'] if self.video_formats else None
+        self.video_formats, self.audio_formats = self.downloader.get_filtered_formats(info, FFMPEG_AVAILABLE)
+        self.selected_format = self.video_formats[0] if self.video_formats else None
         self.best_audio_id = self.audio_formats[0]['id'] if self.audio_formats else None
         self.format_buttons = []
 
@@ -93,49 +93,49 @@ class FormatScreen(Screen):
     def on_mount(self) -> None:
         format_list = self.query_one("#format_list")
         for f in self.video_formats:
-            label = f"{f['res']} @ {f['fps']}fps ({f['size_mb']})"
+            note = "" if f['is_merged'] else "(требует слияния)"
+            label = f"{f['res']} @ {f['fps']}fps ({f['size_mb']}) {note}"
             button = Button(label, id=f"format_{f['id']}")
             self.format_buttons.append(button)
             format_list.mount(button)
         
+        if not self.video_formats:
+            format_list.mount(Static("Доступных видео-форматов не найдено.", classes="error_text"))
+
         if self.format_buttons:
             self.format_buttons[0].variant = "warning"
         
-        if self.audio_formats:
-            best_audio = self.audio_formats[0]
-            audio_note = "будет добавлено автоматически." if FFMPEG_AVAILABLE else "[red](требуется FFmpeg для слияния)[/red]"
-            self.query_one("#audio_info").update(f"🎵 Аудио: {best_audio['abr']}kbps ({best_audio['size_mb']}) {audio_note}")
+        if self.audio_formats and FFMPEG_AVAILABLE:
+            self.query_one("#audio_info").update(f"🎵 Аудио будет добавлено автоматически.")
+        elif not FFMPEG_AVAILABLE:
+             self.query_one("#audio_info").update(f"[yellow]FFmpeg не найден. Доступны только форматы, не требующие слияния.[/yellow]")
 
-        video_button = self.query_one("#download_video", Button)
         audio_button = self.query_one("#download_audio", Button)
-
-        if not FFMPEG_AVAILABLE:
-            video_button.label = "Скачать Видео (требуется FFmpeg)"
-            video_button.disabled = True
-            audio_button.label = "Скачать только аудио (в исходном формате)"
-        else:
-            audio_button.label = "Скачать только аудио (.mp3)"
+        audio_button.label = "Скачать аудио (.mp3)" if FFMPEG_AVAILABLE else "Скачать аудио (исходный формат)"
 
     @on(Button.Pressed)
     def handle_button_press(self, event: Button.Pressed):
         button_id = event.button.id
         
         if button_id and button_id.startswith("format_"):
-            self.selected_video_id = button_id.split("_")[1]
+            format_id = button_id.split("_")[1]
+            self.selected_format = next((f for f in self.video_formats if f['id'] == format_id), None)
             for btn in self.format_buttons:
                 btn.variant = "default"
             event.button.variant = "warning"
         
         elif button_id == "download_video":
-            if self.selected_video_id and self.best_audio_id:
-                self.app.push_screen(DownloadScreen(self.url, self.info, self.selected_video_id, self.best_audio_id))
+            if self.selected_format:
+                video_id = self.selected_format['id']
+                audio_id = None if self.selected_format['is_merged'] else self.best_audio_id
+                self.app.push_screen(DownloadScreen(self.url, self.info, video_id, audio_id))
         
         elif button_id == "download_audio":
             if self.best_audio_id:
                 self.app.push_screen(DownloadScreen(self.url, self.info, None, self.best_audio_id))
 
 class DownloadScreen(Screen):
-    def __init__(self, url: str, info: dict, video_id: str | None, audio_id: str):
+    def __init__(self, url: str, info: dict, video_id: str | None, audio_id: str | None):
         super().__init__()
         self.url = url
         self.info = info
@@ -177,6 +177,8 @@ class DownloadScreen(Screen):
              log_line = "[dim] > Обработка файла...[/dim]"
              if 'postprocessor' in d.get('info_dict', {}):
                  log_line = "[dim] > Конвертация в .mp3...[/dim]"
+             elif self.video_id and self.audio_id:
+                 log_line = "[dim] > Слияние видео и аудио...[/dim]"
              self.post_message(ProgressUpdate(100, log_line))
 
     def on_progress_update(self, message: ProgressUpdate) -> None:

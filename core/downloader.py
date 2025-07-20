@@ -12,60 +12,58 @@ class Downloader:
             print(f"Ошибка yt-dlp при получении информации: {e}")
             return None
 
-    def get_filtered_formats(self, info: dict):
+    def get_filtered_formats(self, info: dict, ffmpeg_available: bool):
         video_formats = []
         audio_formats = []
+        
         for f in info.get('formats', []):
-            is_video = f.get('vcodec') != 'none' and f.get('acodec') == 'none'
-            is_audio = f.get('acodec') != 'none' and f.get('vcodec') == 'none'
-            filesize = f.get('filesize') or f.get('filesize_approx')
-            
-            if is_video and f.get('resolution'):
-                video_formats.append({
-                    "id": f['format_id'],
-                    "res": f.get('resolution'),
-                    "fps": f.get('fps'),
-                    "ext": f['ext'],
-                    "size_mb": f"{filesize / 1024 / 1024:.2f} MB" if filesize else "N/A",
-                })
-            elif is_audio and f.get('abr'):
+            if f.get('acodec') != 'none' and f.get('vcodec') == 'none' and f.get('abr'):
+                filesize = f.get('filesize') or f.get('filesize_approx')
                 audio_formats.append({
-                    "id": f['format_id'],
-                    "abr": f.get('abr'),
-                    "ext": f['ext'],
+                    "id": f['format_id'], "abr": f.get('abr'), "ext": f['ext'],
                     "size_mb": f"{filesize / 1024 / 1024:.2f} MB" if filesize else "N/A",
                 })
-        
-        video_formats.sort(key=lambda x: (int(x['res'].split('x')[1]), x.get('fps') or 0), reverse=True)
         audio_formats.sort(key=lambda x: x.get('abr') or 0, reverse=True)
-        
+
+        if ffmpeg_available:
+            for f in info.get('formats', []):
+                if f.get('vcodec') != 'none' and f.get('acodec') == 'none' and f.get('resolution'):
+                    filesize = f.get('filesize') or f.get('filesize_approx')
+                    video_formats.append({
+                        "id": f['format_id'], "res": f.get('resolution'), "fps": f.get('fps'),
+                        "ext": f['ext'], "size_mb": f"{filesize / 1024 / 1024:.2f} MB" if filesize else "N/A",
+                        "is_merged": False
+                    })
+        else:
+            for f in info.get('formats', []):
+                if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('resolution'):
+                    filesize = f.get('filesize') or f.get('filesize_approx')
+                    video_formats.append({
+                        "id": f['format_id'], "res": f.get('resolution'), "fps": f.get('fps'),
+                        "ext": f['ext'], "size_mb": f"{filesize / 1024 / 1024:.2f} MB" if filesize else "N/A",
+                        "is_merged": True
+                    })
+
+        video_formats.sort(key=lambda x: (int(x['res'].split('x')[1]), x.get('fps') or 0), reverse=True)
         return video_formats, audio_formats
 
-    def download(self, url: str, video_format_id: str | None, audio_format_id: str, progress_hook, convert_to_mp3: bool):
-        """Запускает скачивание с заданными ID форматов."""
+    def download(self, url: str, video_format_id: str | None, audio_format_id: str | None, progress_hook, convert_to_mp3: bool):
         config = get_config()
         download_path = config.get("download_path")
         output_template = f'{download_path}/%(title)s [%(id)s].%(ext)s'
         
-        ydl_opts = {
-            'progress_hooks': [progress_hook],
-            'outtmpl': output_template,
-        }
+        ydl_opts = {'progress_hooks': [progress_hook], 'outtmpl': output_template}
 
-        #ГУГЛ. КАКОГО ФИГА ВЫ НЕ ДАЕТЕ НОРМАЛЬНО ССЫЛКИ НА НОРАЛЬНЫЕ ИСТОЧНИКИ ПОЧЕМУ Я ДОЛЖЕН ЭТО ВСЕ САМ ПРАВИТЬ И ЛЕЗТЬ В АРАБСКИЕ САЙТЫ ЫЫЫЫ
-
-        if video_format_id is None and audio_format_id:
-            ydl_opts['format'] = audio_format_id
-            if convert_to_mp3:
-                ydl_opts['postprocessors'] = [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
-                }]
-        else:
+        if video_format_id and audio_format_id:
             ydl_opts['format'] = f"{video_format_id}+{audio_format_id}"
             ydl_opts['merge_output_format'] = 'mp4'
-
+        elif video_format_id and not audio_format_id:
+            ydl_opts['format'] = video_format_id
+        elif audio_format_id and not video_format_id:
+            ydl_opts['format'] = audio_format_id
+            if convert_to_mp3:
+                ydl_opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
+        
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])

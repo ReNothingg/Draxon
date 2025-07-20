@@ -1,4 +1,3 @@
-import os
 import shutil
 import sys
 from pathlib import Path
@@ -8,8 +7,7 @@ from core.interface import DraxonApp
 def check_ffmpeg():
     if not shutil.which("ffmpeg"):
         print("⚠️  Внимание: ffmpeg не найден в вашем PATH.", file=sys.stderr)
-        print("   Аудио будет скачано в исходном формате, без конвертации в .mp3.", file=sys.stderr)
-        print("   Пожалуйста, установите FFmpeg для полного функционала.", file=sys.stderr)
+        print("   Функционал будет ограничен форматами, не требующими слияния.", file=sys.stderr)
         print("-" * 30)
 
 def main():
