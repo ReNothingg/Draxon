@@ -45,7 +45,6 @@ class MainScreen(Screen):
     def get_info(self, url: str) -> None:
         downloader = Downloader()
         info = downloader.get_video_info(url)
-        
         self.app.call_from_thread(self.on_get_info_complete, info)
 
     def on_get_info_complete(self, info: dict | None) -> None:
@@ -86,12 +85,12 @@ class DownloadScreen(Screen):
 
     @work(thread=True)
     def run_download(self) -> None:
-        success, format_note = self.downloader.download(self.url, self.is_audio_only, self.progress_hook)
-        self.app.call_from_thread(self.on_download_complete, success, format_note)
+        success, message = self.downloader.download(self.url, self.is_audio_only, self.progress_hook)
+        self.app.call_from_thread(self.on_download_complete, success, message)
 
-    def on_download_complete(self, success: bool, format_note: str) -> None:
+    def on_download_complete(self, success: bool, message: str) -> None:
         title = self.info.get('title', 'N/A')
-        log_download(self.url, title, format_note, success)
+        log_download(self.url, title, "Видео" if not self.is_audio_only else "Аудио", success)
         
         log_widget = self.query_one("#download_log")
         if success:
@@ -99,6 +98,7 @@ class DownloadScreen(Screen):
             log_widget.write_line("\n[bold green]✅ Загрузка завершена![/bold green]")
         else:
             log_widget.write_line("\n[bold red]❌ Произошла ошибка во время загрузки.[/bold red]")
+            log_widget.write_line(f"[red]Причина: {message}[/red]")
         
         self.query_one("#back_button").disabled = False
 
@@ -111,12 +111,11 @@ class DownloadScreen(Screen):
             try:
                 progress = float(percent_str)
                 self.app.call_from_thread(self.query_one("#progress_bar").update, progress=progress)
-                self.app.call_from_thread(self.query_one("#download_log").write_line, f" > {percent_str:>5}% | Скорость: {speed_str} | ETA: {eta_str}")
             except (ValueError, TypeError):
                 pass
 
         elif d['status'] == 'finished':
-            self.app.call_from_thread(self.query_one("#download_log").write_line, f"[dim]Обработка файла завершена...[/dim]")
+            self.app.call_from_thread(self.query_one("#download_log").write_line, f"[dim] > Обработка файла завершена...[/dim]")
 
     @on(Button.Pressed, "#back_button")
     def go_back(self):
