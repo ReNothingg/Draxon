@@ -1,8 +1,8 @@
 from pathlib import Path
 from textual.app import App, ComposeResult
-from textual.containers import Container
+from textual.containers import Container, Vertical
 from textual.screen import Screen
-from textual.widgets import Header, Footer, Static, Input, Button, ProgressBar, RadioSet, RadioButton, Log
+from textual.widgets import Header, Footer, Static, Input, Button, ProgressBar, Log, DataTable
 from textual import work, on
 from textual.message import Message
 
@@ -10,7 +10,6 @@ from core.downloader import Downloader
 from utils.logger import log_download
 
 CSS_PATH = Path(__file__).parent.parent / "ui" / "interface.css"
-
 
 class ProgressUpdate(Message):
     def __init__(self, progress: float, log_line: str) -> None:
@@ -31,11 +30,6 @@ class MainScreen(Screen):
             Static("Draxon ✨", id="title"),
             Static("Вставьте ссылку на видео, плейлист или канал ниже", id="subtitle"),
             Input(placeholder="https://...", id="url_input"),
-            RadioSet(
-                RadioButton("Видео", id="video_radio", value=True),
-                RadioButton("Только аудио (.mp3)", id="audio_radio"),
-                id="format_selector"
-            ),
             Button("Анализировать", variant="primary", id="analyze_button"),
             Static("", id="error_message"),
             id="main_container"
@@ -66,18 +60,60 @@ class MainScreen(Screen):
         analyze_button.label = "Анализировать"
         
         if info:
-            is_audio = self.query_one("#audio_radio").value
-            self.app.push_screen(DownloadScreen(url=self.query_one("#url_input").value, info=info, is_audio_only=is_audio))
+            self.app.push_screen(FormatScreen(info=info))
         else:
             self.query_one("#error_message").update("🙁 Не удалось получить информацию. Ссылка корректна?")
+class FormatScreen(Screen):
+    def __init__(self, info: dict):
+        super().__init__()
+        self.info = info
+        self.url = info.get("webpage_url")
+        self.downloader = Downloader()
+        self.video_formats, self.audio_formats = self.downloader.get_filtered_formats(info)
+        self.selected_video_id = self.video_formats[0]['id'] if self.video_formats else None
+        self.best_audio_id = self.audio_formats[0]['id'] if self.audio_formats else None
+
+    def compose(self) -> ComposeResult:
+        yield Header(show_clock=True)
+        yield Vertical(
+            Static("[bold]Выберите формат видео[/bold] (используйте стрелки, Enter для выбора)"),
+            DataTable(id="video_table"),
+            Static("\n[bold]Лучший аудио-формат будет выбран автоматически.[/bold]"),
+            Button("Скачать Видео", variant="primary", id="download_video"),
+            Button("Скачать только аудио (.mp3)", id="download_audio"),
+            id="format_container"
+        )
+        yield Footer()
+
+    def on_mount(self) -> None:
+        table = self.query_one("#video_table", DataTable)
+        table.cursor_type = "row"
+        table.add_columns("Разрешение", "FPS", "Размер", "Тип", "Заметка")
+        for f in self.video_formats:
+            table.add_row(f['res'], f['fps'], f['size_mb'], f['ext'], f['note'], key=f['id'])
+
+    @on(DataTable.RowSelected, "#video_table")
+    def on_video_selected(self, event: DataTable.RowSelected):
+        self.selected_video_id = event.row_key.value
+
+    @on(Button.Pressed, "#download_video")
+    def start_video_download(self):
+        if self.selected_video_id and self.best_audio_id:
+            self.app.push_screen(DownloadScreen(self.url, self.info, self.selected_video_id, self.best_audio_id))
+    
+    @on(Button.Pressed, "#download_audio")
+    def start_audio_download(self):
+        if self.best_audio_id:
+            self.app.push_screen(DownloadScreen(self.url, self.info, None, self.best_audio_id))
 
 
 class DownloadScreen(Screen):
-    def __init__(self, url: str, info: dict, is_audio_only: bool):
+    def __init__(self, url: str, info: dict, video_id: str | None, audio_id: str):
         super().__init__()
         self.url = url
         self.info = info
-        self.is_audio_only = is_audio_only
+        self.video_id = video_id
+        self.audio_id = audio_id
         self.downloader = Downloader()
 
     def compose(self) -> ComposeResult:
@@ -98,32 +134,25 @@ class DownloadScreen(Screen):
 
     @work(thread=True)
     def run_download(self) -> None:
-        success, message = self.downloader.download(self.url, self.is_audio_only, self.progress_hook)
+        success, message = self.downloader.download(self.url, self.video_id, self.audio_id, self.progress_hook)
         self.post_message(DownloadComplete(success, message))
 
     def progress_hook(self, d: dict) -> None:
         if d['status'] == 'downloading':
             percent_str = d.get('_percent_str', '0%').strip().replace('%', '')
-            speed_str = d.get('_speed_str', 'N/A')
-            eta_str = d.get('_eta_str', 'N/A')
-            
             try:
                 progress = float(percent_str)
-                log_line = f" > {percent_str:>5}% | Скорость: {speed_str} | ETA: {eta_str}"
+                log_line = f" > Скачивание: {d.get('filename', '').split('/')[-1][:50]}... {percent_str:>5}%"
                 self.post_message(ProgressUpdate(progress, log_line))
-            except (ValueError, TypeError):
-                pass
-        elif d['status'] == 'finished':
-            pass
+            except (ValueError, TypeError): pass
+        elif d['status'] == 'finished' and 'postprocessor' not in d.get('info_dict', {}):
+             self.post_message(ProgressUpdate(100, "[dim] > Слияние форматов...[/dim]"))
 
     def on_progress_update(self, message: ProgressUpdate) -> None:
         self.query_one("#progress_bar").update(progress=message.progress)
         self.query_one("#download_log").write_line(message.log_line)
 
     def on_download_complete(self, message: DownloadComplete) -> None:
-        title = self.info.get('title', 'N/A')
-        log_download(self.url, title, "Видео" if not self.is_audio_only else "Аудио", message.success)
-        
         log_widget = self.query_one("#download_log")
         if message.success:
             self.query_one("#progress_bar").update(progress=100)
@@ -140,6 +169,7 @@ class DownloadScreen(Screen):
 
 
 class DraxonApp(App):
+    """Главное приложение Draxon TUI."""
     CSS_PATH = CSS_PATH
     SCREENS = {"main": MainScreen()}
     BINDINGS = [("q", "quit", "Выход")]

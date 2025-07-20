@@ -36,12 +36,6 @@ Screen {
     border: tall #007acc;
 }
 
-#format_selector {
-    margin-top: 1;
-    width: auto;
-    border: none;
-}
-
 #analyze_button {
     width: 100%;
     margin-top: 1;
@@ -52,6 +46,25 @@ Screen {
     text-align: center;
     width: 100%;
     height: 1;
+    margin-top: 1;
+}
+
+#format_container {
+    width: 90%;
+    max-width: 120;
+    height: auto;
+    padding: 1 2;
+    border: round #333;
+    background: #1a1a1a;
+}
+
+#video_table {
+    height: 15;
+    margin: 1 0;
+}
+
+#download_video, #download_audio {
+    width: 100%;
     margin-top: 1;
 }
 
