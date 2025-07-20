@@ -26,7 +26,6 @@ class DownloadComplete(Message):
         self.message = message
         super().__init__()
 
-
 class MainScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -113,7 +112,7 @@ class FormatScreen(Screen):
         if not FFMPEG_AVAILABLE:
             video_button.label = "Скачать Видео (требуется FFmpeg)"
             video_button.disabled = True
-            audio_button.label = "Скачать только аудио (исходный формат)"
+            audio_button.label = "Скачать только аудио (в исходном формате)"
         else:
             audio_button.label = "Скачать только аудио (.mp3)"
 
@@ -162,7 +161,8 @@ class DownloadScreen(Screen):
 
     @work(thread=True)
     def run_download(self) -> None:
-        success, message = self.downloader.download(self.url, self.video_id, self.audio_id, self.progress_hook)
+        should_convert = (self.video_id is None) and FFMPEG_AVAILABLE
+        success, message = self.downloader.download(self.url, self.video_id, self.audio_id, self.progress_hook, convert_to_mp3=should_convert)
         self.post_message(DownloadComplete(success, message))
 
     def progress_hook(self, d: dict) -> None:
@@ -173,8 +173,11 @@ class DownloadScreen(Screen):
                 log_line = f" > Скачивание: {d.get('filename', '').split('/')[-1][:50]}... {percent_str:>5}%"
                 self.post_message(ProgressUpdate(progress, log_line))
             except (ValueError, TypeError): pass
-        elif d['status'] == 'finished' and 'postprocessor' not in d.get('info_dict', {}):
-             self.post_message(ProgressUpdate(100, "[dim] > Слияние форматов...[/dim]"))
+        elif d['status'] == 'finished':
+             log_line = "[dim] > Обработка файла...[/dim]"
+             if 'postprocessor' in d.get('info_dict', {}):
+                 log_line = "[dim] > Конвертация в .mp3...[/dim]"
+             self.post_message(ProgressUpdate(100, log_line))
 
     def on_progress_update(self, message: ProgressUpdate) -> None:
         self.query_one("#progress_bar").update(progress=message.progress)

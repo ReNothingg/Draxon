@@ -41,7 +41,8 @@ class Downloader:
         
         return video_formats, audio_formats
 
-    def download(self, url: str, video_format_id: str | None, audio_format_id: str, progress_hook):
+    def download(self, url: str, video_format_id: str | None, audio_format_id: str, progress_hook, convert_to_mp3: bool):
+        """Запускает скачивание с заданными ID форматов."""
         config = get_config()
         download_path = config.get("download_path")
         output_template = f'{download_path}/%(title)s [%(id)s].%(ext)s'
@@ -51,18 +52,18 @@ class Downloader:
             'outtmpl': output_template,
         }
 
+        #ГУГЛ. КАКОГО ФИГА ВЫ НЕ ДАЕТЕ НОРМАЛЬНО ССЫЛКИ НА НОРАЛЬНЫЕ ИСТОЧНИКИ ПОЧЕМУ Я ДОЛЖЕН ЭТО ВСЕ САМ ПРАВИТЬ И ЛЕЗТЬ В АРАБСКИЕ САЙТЫ ЫЫЫЫ
+
         if video_format_id is None and audio_format_id:
-            
             ydl_opts['format'] = audio_format_id
-            ydl_opts['postprocessors'] = [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }]
+            if convert_to_mp3:
+                ydl_opts['postprocessors'] = [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }]
         else:
-            
             ydl_opts['format'] = f"{video_format_id}+{audio_format_id}"
-            
             ydl_opts['merge_output_format'] = 'mp4'
 
         try:
