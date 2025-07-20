@@ -73,7 +73,7 @@ class FormatScreen(Screen):
         self.info = info
         self.url = info.get("webpage_url")
         self.downloader = Downloader()
-        self.video_formats, self.audio_formats = self.downloader.get_filtered_formats(info, FFMPEG_AVAILABLE)
+        self.video_formats, self.audio_formats = self.downloader.get_filtered_formats(info)
         self.selected_format = self.video_formats[0] if self.video_formats else None
         self.best_audio_id = self.audio_formats[0]['id'] if self.audio_formats else None
         self.format_buttons = []
@@ -81,7 +81,7 @@ class FormatScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         yield Container(
-            Static("[bold]Выберите качество видео[/bold]", id="format_title"),
+            Static("Выберите качество видео", id="format_title"),
             VerticalScroll(id="format_list"),
             Static("", id="audio_info"),
             Button("Скачать Видео", variant="success", id="download_video"),
@@ -93,9 +93,17 @@ class FormatScreen(Screen):
     def on_mount(self) -> None:
         format_list = self.query_one("#format_list")
         for f in self.video_formats:
-            note = "" if f['is_merged'] else "(требует слияния)"
+            note = ""
+            needs_ffmpeg = not f['is_merged']
+            if needs_ffmpeg:
+                note = "(требуется FFmpeg)" if FFMPEG_AVAILABLE else "[red](требуется FFmpeg, не найден)[/red]"
+
             label = f"{f['res']} @ {f['fps']}fps ({f['size_mb']}) {note}"
             button = Button(label, id=f"format_{f['id']}")
+            
+            if needs_ffmpeg and not FFMPEG_AVAILABLE:
+                button.disabled = True
+
             self.format_buttons.append(button)
             format_list.mount(button)
         
@@ -103,15 +111,22 @@ class FormatScreen(Screen):
             format_list.mount(Static("Доступных видео-форматов не найдено.", classes="error_text"))
 
         if self.format_buttons:
-            self.format_buttons[0].variant = "warning"
-        
-        if self.audio_formats and FFMPEG_AVAILABLE:
-            self.query_one("#audio_info").update(f"🎵 Аудио будет добавлено автоматически.")
-        elif not FFMPEG_AVAILABLE:
+            first_available_button = next((btn for btn in self.format_buttons if not btn.disabled), None)
+            if first_available_button:
+                first_available_button.variant = "warning"
+                format_id = first_available_button.id.split("_")[1]
+                self.selected_format = next((f for f in self.video_formats if f['id'] == format_id), None)
+
+        if not FFMPEG_AVAILABLE:
              self.query_one("#audio_info").update(f"[yellow]FFmpeg не найден. Доступны только форматы, не требующие слияния.[/yellow]")
+        else:
+            self.query_one("#audio_info").update(f"🎵 Аудио будет добавлено автоматически для форматов высокого качества.")
 
         audio_button = self.query_one("#download_audio", Button)
         audio_button.label = "Скачать аудио (.mp3)" if FFMPEG_AVAILABLE else "Скачать аудио (исходный формат)"
+        if not self.selected_format:
+            self.query_one("#download_video", Button).disabled = True
+
 
     @on(Button.Pressed)
     def handle_button_press(self, event: Button.Pressed):
@@ -121,7 +136,8 @@ class FormatScreen(Screen):
             format_id = button_id.split("_")[1]
             self.selected_format = next((f for f in self.video_formats if f['id'] == format_id), None)
             for btn in self.format_buttons:
-                btn.variant = "default"
+                if not btn.disabled:
+                    btn.variant = "default"
             event.button.variant = "warning"
         
         elif button_id == "download_video":
@@ -147,7 +163,7 @@ class DownloadScreen(Screen):
         title = self.info.get('title', 'Неизвестный контент')
         yield Header(show_clock=True)
         yield Container(
-            Static(f"[bold]Загрузка:[/bold] {title[:80]}", id="download_title"),
+            Static(f"Загрузка: {title[:80]}", id="download_title"),
             ProgressBar(total=100, show_eta=False, id="progress_bar"),
             Log(id="download_log", max_lines=100, auto_scroll=True),
             Button("Назад", id="back_button", disabled=True),
@@ -189,11 +205,11 @@ class DownloadScreen(Screen):
         log_widget = self.query_one("#download_log")
         if message.success:
             self.query_one("#progress_bar").update(progress=100)
-            log_widget.write_line("\n[bold green]✅ Загрузка завершена![/bold green]")
+            log_widget.write_line("\n✅ Загрузка завершена!")
         else:
-            log_widget.write_line("\n[bold red]❌ Произошла ошибка во время загрузки.[/bold red]")
-            log_widget.write_line(f"[red]Причина: {message.message}[/red]")
-        
+            log_widget.write_line("\n❌ Произошла ошибка во время загрузки.")
+            log_widget.write_line(f"Причина: {message.message}")
+
         self.query_one("#back_button").disabled = False
 
     @on(Button.Pressed, "#back_button")
