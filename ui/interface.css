@@ -1,0 +1,86 @@
+Screen {
+    background: #0c0c0c;
+    color: #e0e0e0;
+    layout: vertical;
+    align: center middle;
+}
+
+#main_container {
+    width: 80%;
+    max-width: 80;
+    height: auto;
+    padding: 2 4;
+    border: round #333;
+    background: #1a1a1a;
+}
+
+#title {
+    content-align: center middle;
+    width: 100%;
+    margin-bottom: 1;
+    text-style: bold;
+}
+
+#subtitle {
+    content-align: center middle;
+    width: 100%;
+    color: #888;
+    margin-bottom: 1;
+}
+
+#url_input {
+    margin: 1 0;
+    border: tall #444;
+}
+#url_input:focus {
+    border: tall #007acc;
+}
+
+#format_selector {
+    margin-top: 1;
+    width: auto;
+    border: none;
+}
+
+#analyze_button {
+    width: 100%;
+    margin-top: 1;
+}
+
+#error_message {
+    color: #ff4444;
+    text-align: center;
+    width: 100%;
+    height: 1;
+    margin-top: 1;
+}
+
+#download_container {
+    width: 90%;
+    max-width: 100;
+    height: auto;
+    padding: 2 4;
+    border: round #333;
+    background: #1a1a1a;
+}
+
+#download_title {
+    margin-bottom: 1;
+}
+
+#progress_bar {
+    margin: 1 0;
+    background: #222;
+    color: #00aaff;
+}
+
+#download_log {
+    height: 15;
+    border: round #222;
+    background: #111;
+    margin-bottom: 1;
+}
+
+#back_button {
+    width: 100%;
+}
