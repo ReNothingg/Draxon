@@ -46,7 +46,7 @@ class MainScreen(Screen):
         downloader = Downloader()
         info = downloader.get_video_info(url)
         
-        self.call_from_thread(self.on_get_info_complete, info)
+        self.app.call_from_thread(self.on_get_info_complete, info)
 
     def on_get_info_complete(self, info: dict | None) -> None:
         analyze_button = self.query_one("#analyze_button")
@@ -87,7 +87,7 @@ class DownloadScreen(Screen):
     @work(thread=True)
     def run_download(self) -> None:
         success, format_note = self.downloader.download(self.url, self.is_audio_only, self.progress_hook)
-        self.call_from_thread(self.on_download_complete, success, format_note)
+        self.app.call_from_thread(self.on_download_complete, success, format_note)
 
     def on_download_complete(self, success: bool, format_note: str) -> None:
         title = self.info.get('title', 'N/A')
@@ -103,9 +103,6 @@ class DownloadScreen(Screen):
         self.query_one("#back_button").disabled = False
 
     def progress_hook(self, d: dict) -> None:
-        log_widget = self.query_one("#download_log")
-        progress_bar = self.query_one("#progress_bar")
-
         if d['status'] == 'downloading':
             percent_str = d.get('_percent_str', '0%').strip().replace('%', '')
             speed_str = d.get('_speed_str', 'N/A')
@@ -113,13 +110,13 @@ class DownloadScreen(Screen):
             
             try:
                 progress = float(percent_str)
-                self.call_from_thread(progress_bar.update, progress=progress)
-                self.call_from_thread(log_widget.write_line, f" > {percent_str:>5}% | Скорость: {speed_str} | ETA: {eta_str}")
+                self.app.call_from_thread(self.query_one("#progress_bar").update, progress=progress)
+                self.app.call_from_thread(self.query_one("#download_log").write_line, f" > {percent_str:>5}% | Скорость: {speed_str} | ETA: {eta_str}")
             except (ValueError, TypeError):
                 pass
 
         elif d['status'] == 'finished':
-            self.call_from_thread(log_widget.write_line, f"[dim]Обработка файла завершена...[/dim]")
+            self.app.call_from_thread(self.query_one("#download_log").write_line, f"[dim]Обработка файла завершена...[/dim]")
 
     @on(Button.Pressed, "#back_button")
     def go_back(self):
@@ -127,7 +124,7 @@ class DownloadScreen(Screen):
 
 
 class DraxonApp(App):
-    CSS_PATH = CSS_PATH 
+    CSS_PATH = CSS_PATH
     SCREENS = {"main": MainScreen()}
     BINDINGS = [("q", "quit", "Выход")]
 
