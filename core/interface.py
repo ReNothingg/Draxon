@@ -1,8 +1,9 @@
+import shutil
 from pathlib import Path
 from textual.app import App, ComposeResult
-from textual.containers import Container, Vertical
+from textual.containers import Container, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Header, Footer, Static, Input, Button, ProgressBar, Log, DataTable
+from textual.widgets import Header, Footer, Static, Input, Button, ProgressBar, Log
 from textual import work, on
 from textual.message import Message
 
@@ -10,6 +11,8 @@ from core.downloader import Downloader
 from utils.logger import log_download
 
 CSS_PATH = Path(__file__).parent.parent / "ui" / "interface.css"
+
+FFMPEG_AVAILABLE = bool(shutil.which("ffmpeg"))
 
 class ProgressUpdate(Message):
     def __init__(self, progress: float, log_line: str) -> None:
@@ -22,6 +25,7 @@ class DownloadComplete(Message):
         self.success = success
         self.message = message
         super().__init__()
+
 
 class MainScreen(Screen):
     def compose(self) -> ComposeResult:
@@ -63,6 +67,7 @@ class MainScreen(Screen):
             self.app.push_screen(FormatScreen(info=info))
         else:
             self.query_one("#error_message").update("🙁 Не удалось получить информацию. Ссылка корректна?")
+
 class FormatScreen(Screen):
     def __init__(self, info: dict):
         super().__init__()
@@ -72,40 +77,63 @@ class FormatScreen(Screen):
         self.video_formats, self.audio_formats = self.downloader.get_filtered_formats(info)
         self.selected_video_id = self.video_formats[0]['id'] if self.video_formats else None
         self.best_audio_id = self.audio_formats[0]['id'] if self.audio_formats else None
+        self.format_buttons = []
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
-        yield Vertical(
-            Static("[bold]Выберите формат видео[/bold] (используйте стрелки, Enter для выбора)"),
-            DataTable(id="video_table"),
-            Static("\n[bold]Лучший аудио-формат будет выбран автоматически.[/bold]"),
-            Button("Скачать Видео", variant="primary", id="download_video"),
-            Button("Скачать только аудио (.mp3)", id="download_audio"),
+        yield Container(
+            Static("[bold]Выберите качество видео[/bold]", id="format_title"),
+            VerticalScroll(id="format_list"),
+            Static("", id="audio_info"),
+            Button("Скачать Видео", variant="success", id="download_video"),
+            Button("Скачать только аудио", variant="primary", id="download_audio"),
             id="format_container"
         )
         yield Footer()
 
     def on_mount(self) -> None:
-        table = self.query_one("#video_table", DataTable)
-        table.cursor_type = "row"
-        table.add_columns("Разрешение", "FPS", "Размер", "Тип", "Заметка")
+        format_list = self.query_one("#format_list")
         for f in self.video_formats:
-            table.add_row(f['res'], f['fps'], f['size_mb'], f['ext'], f['note'], key=f['id'])
+            label = f"{f['res']} @ {f['fps']}fps ({f['size_mb']})"
+            button = Button(label, id=f"format_{f['id']}")
+            self.format_buttons.append(button)
+            format_list.mount(button)
+        
+        if self.format_buttons:
+            self.format_buttons[0].variant = "warning"
+        
+        if self.audio_formats:
+            best_audio = self.audio_formats[0]
+            audio_note = "будет добавлено автоматически." if FFMPEG_AVAILABLE else "[red](требуется FFmpeg для слияния)[/red]"
+            self.query_one("#audio_info").update(f"🎵 Аудио: {best_audio['abr']}kbps ({best_audio['size_mb']}) {audio_note}")
 
-    @on(DataTable.RowSelected, "#video_table")
-    def on_video_selected(self, event: DataTable.RowSelected):
-        self.selected_video_id = event.row_key.value
+        video_button = self.query_one("#download_video", Button)
+        audio_button = self.query_one("#download_audio", Button)
 
-    @on(Button.Pressed, "#download_video")
-    def start_video_download(self):
-        if self.selected_video_id and self.best_audio_id:
-            self.app.push_screen(DownloadScreen(self.url, self.info, self.selected_video_id, self.best_audio_id))
-    
-    @on(Button.Pressed, "#download_audio")
-    def start_audio_download(self):
-        if self.best_audio_id:
-            self.app.push_screen(DownloadScreen(self.url, self.info, None, self.best_audio_id))
+        if not FFMPEG_AVAILABLE:
+            video_button.label = "Скачать Видео (требуется FFmpeg)"
+            video_button.disabled = True
+            audio_button.label = "Скачать только аудио (исходный формат)"
+        else:
+            audio_button.label = "Скачать только аудио (.mp3)"
 
+    @on(Button.Pressed)
+    def handle_button_press(self, event: Button.Pressed):
+        button_id = event.button.id
+        
+        if button_id and button_id.startswith("format_"):
+            self.selected_video_id = button_id.split("_")[1]
+            for btn in self.format_buttons:
+                btn.variant = "default"
+            event.button.variant = "warning"
+        
+        elif button_id == "download_video":
+            if self.selected_video_id and self.best_audio_id:
+                self.app.push_screen(DownloadScreen(self.url, self.info, self.selected_video_id, self.best_audio_id))
+        
+        elif button_id == "download_audio":
+            if self.best_audio_id:
+                self.app.push_screen(DownloadScreen(self.url, self.info, None, self.best_audio_id))
 
 class DownloadScreen(Screen):
     def __init__(self, url: str, info: dict, video_id: str | None, audio_id: str):
@@ -167,9 +195,7 @@ class DownloadScreen(Screen):
     def go_back(self):
         self.app.pop_screen()
 
-
 class DraxonApp(App):
-    """Главное приложение Draxon TUI."""
     CSS_PATH = CSS_PATH
     SCREENS = {"main": MainScreen()}
     BINDINGS = [("q", "quit", "Выход")]

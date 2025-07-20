@@ -50,17 +50,37 @@ Screen {
 }
 
 #format_container {
-    width: 90%;
-    max-width: 120;
+    width: 80%;
+    max-width: 90;
     height: auto;
     padding: 1 2;
     border: round #333;
     background: #1a1a1a;
 }
 
-#video_table {
-    height: 15;
+#format_title {
+    width: 100%;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#format_list {
+    height: 12;
+    border: round #222;
+    background: #111;
+    padding: 0 1;
+}
+
+#format_list Button {
+    width: 100%;
     margin: 1 0;
+}
+
+#audio_info {
+    width: 100%;
+    text-align: center;
+    color: #888;
+    margin-top: 1;
 }
 
 #download_video, #download_audio {
