@@ -1,11 +1,9 @@
 from pathlib import Path
-
 from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.screen import Screen
 from textual.widgets import Header, Footer, Static, Input, Button, ProgressBar, RadioSet, RadioButton, Log
 from textual import work, on
-
 from core.downloader import Downloader
 from utils.logger import log_download
 
@@ -102,6 +100,13 @@ class DownloadScreen(Screen):
         
         self.query_one("#back_button").disabled = False
 
+    def update_progress_display(self, progress: float, log_line: str) -> None:
+        self.query_one("#progress_bar").update(progress=progress)
+        self.query_one("#download_log").write_line(log_line)
+
+    def log_file_finished(self) -> None:
+        self.query_one("#download_log").write_line("[dim] > Обработка файла завершена...[/dim]")
+
     def progress_hook(self, d: dict) -> None:
         if d['status'] == 'downloading':
             percent_str = d.get('_percent_str', '0%').strip().replace('%', '')
@@ -110,12 +115,13 @@ class DownloadScreen(Screen):
             
             try:
                 progress = float(percent_str)
-                self.app.call_from_thread(self.query_one("#progress_bar").update, progress=progress)
+                log_line = f" > {percent_str:>5}% | Скорость: {speed_str} | ETA: {eta_str}"
+                self.app.call_from_thread(self.update_progress_display, progress, log_line)
             except (ValueError, TypeError):
                 pass
 
         elif d['status'] == 'finished':
-            self.app.call_from_thread(self.query_one("#download_log").write_line, f"[dim] > Обработка файла завершена...[/dim]")
+            self.app.call_from_thread(self.log_file_finished)
 
     @on(Button.Pressed, "#back_button")
     def go_back(self):
