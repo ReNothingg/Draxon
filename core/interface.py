@@ -4,10 +4,25 @@ from textual.containers import Container
 from textual.screen import Screen
 from textual.widgets import Header, Footer, Static, Input, Button, ProgressBar, RadioSet, RadioButton, Log
 from textual import work, on
+from textual.message import Message
+
 from core.downloader import Downloader
 from utils.logger import log_download
 
 CSS_PATH = Path(__file__).parent.parent / "ui" / "interface.css"
+
+
+class ProgressUpdate(Message):
+    def __init__(self, progress: float, log_line: str) -> None:
+        self.progress = progress
+        self.log_line = log_line
+        super().__init__()
+
+class DownloadComplete(Message):
+    def __init__(self, success: bool, message: str) -> None:
+        self.success = success
+        self.message = message
+        super().__init__()
 
 class MainScreen(Screen):
     def compose(self) -> ComposeResult:
@@ -84,28 +99,7 @@ class DownloadScreen(Screen):
     @work(thread=True)
     def run_download(self) -> None:
         success, message = self.downloader.download(self.url, self.is_audio_only, self.progress_hook)
-        self.app.call_from_thread(self.on_download_complete, success, message)
-
-    def on_download_complete(self, success: bool, message: str) -> None:
-        title = self.info.get('title', 'N/A')
-        log_download(self.url, title, "Видео" if not self.is_audio_only else "Аудио", success)
-        
-        log_widget = self.query_one("#download_log")
-        if success:
-            self.query_one("#progress_bar").update(progress=100)
-            log_widget.write_line("\n[bold green]✅ Загрузка завершена![/bold green]")
-        else:
-            log_widget.write_line("\n[bold red]❌ Произошла ошибка во время загрузки.[/bold red]")
-            log_widget.write_line(f"[red]Причина: {message}[/red]")
-        
-        self.query_one("#back_button").disabled = False
-
-    def update_progress_display(self, progress: float, log_line: str) -> None:
-        self.query_one("#progress_bar").update(progress=progress)
-        self.query_one("#download_log").write_line(log_line)
-
-    def log_file_finished(self) -> None:
-        self.query_one("#download_log").write_line("[dim] > Обработка файла завершена...[/dim]")
+        self.post_message(DownloadComplete(success, message))
 
     def progress_hook(self, d: dict) -> None:
         if d['status'] == 'downloading':
@@ -116,12 +110,29 @@ class DownloadScreen(Screen):
             try:
                 progress = float(percent_str)
                 log_line = f" > {percent_str:>5}% | Скорость: {speed_str} | ETA: {eta_str}"
-                self.app.call_from_thread(self.update_progress_display, progress, log_line)
+                self.post_message(ProgressUpdate(progress, log_line))
             except (ValueError, TypeError):
                 pass
-
         elif d['status'] == 'finished':
-            self.app.call_from_thread(self.log_file_finished)
+            pass
+
+    def on_progress_update(self, message: ProgressUpdate) -> None:
+        self.query_one("#progress_bar").update(progress=message.progress)
+        self.query_one("#download_log").write_line(message.log_line)
+
+    def on_download_complete(self, message: DownloadComplete) -> None:
+        title = self.info.get('title', 'N/A')
+        log_download(self.url, title, "Видео" if not self.is_audio_only else "Аудио", message.success)
+        
+        log_widget = self.query_one("#download_log")
+        if message.success:
+            self.query_one("#progress_bar").update(progress=100)
+            log_widget.write_line("\n[bold green]✅ Загрузка завершена![/bold green]")
+        else:
+            log_widget.write_line("\n[bold red]❌ Произошла ошибка во время загрузки.[/bold red]")
+            log_widget.write_line(f"[red]Причина: {message.message}[/red]")
+        
+        self.query_one("#back_button").disabled = False
 
     @on(Button.Pressed, "#back_button")
     def go_back(self):
