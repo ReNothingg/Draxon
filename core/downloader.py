@@ -58,7 +58,7 @@ class Downloader:
             return 'bestvideo[height<=1080]+bestaudio/best[height<=1080]'
         if quality == '720p':
             return 'bestvideo[height<=720]+bestaudio/best[height<=720]'
-        return 'bestvideo+bestaudio/best' # Fallback
+        return 'bestvideo+bestaudio/best'
 
     def download(self, url: str, download_path: Path, progress_hook, *,
                  video_format_id: str | None = None,

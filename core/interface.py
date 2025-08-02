@@ -6,8 +6,6 @@ from textual.screen import Screen
 from textual.widgets import Header, Footer, Static, Input, Button, ProgressBar, Log, RadioSet, RadioButton, Checkbox, Label
 from textual import work, on
 from textual.message import Message
-from textual.css.stylesheet import Stylesheet
-from textual.css.errors import CssPathError, ParseError
 
 from .config import ConfigManager
 from .downloader import Downloader
@@ -59,34 +57,45 @@ class MainScreen(Screen):
         info = self.app.downloader.get_video_info(url)
         self.app.call_from_thread(self.on_get_info_complete, info, url)
 
+    @work(exclusive=True, thread=True)
+    def get_full_video_info(self, url: str) -> None:
+        full_info = self.app.downloader.get_video_info(url.split('&list=')[0])
+        if full_info:
+            self.app.call_from_thread(self.app.push_screen, FormatScreen(info=full_info))
+        else:
+            def on_fail():
+                self.query_one("#analyze_button").disabled = False
+                self.query_one("#analyze_button").label = "Анализировать"
+                self.query_one("#error_message").update("🙁 Не удалось получить детальную информацию.")
+            self.app.call_from_thread(on_fail)
+
     def on_get_info_complete(self, info: dict | None, url: str) -> None:
         analyze_button = self.query_one("#analyze_button")
-        analyze_button.disabled = False
-        analyze_button.label = "Анализировать"
         
         if not info:
+            analyze_button.disabled = False
+            analyze_button.label = "Анализировать"
             self.query_one("#error_message").update("🙁 Не удалось получить информацию. Проверьте ссылку.")
             return
 
         if info.get('_type') == 'playlist':
+            analyze_button.disabled = False
+            analyze_button.label = "Анализировать"
             self.app.push_screen(PlaylistScreen(info=info))
         else:
-            @work(exclusive=True, thread=True)
-            def get_full_info(url: str):
-                full_info = self.app.downloader.get_video_info(url.replace('&list=', '&nolist='))
-                self.app.call_from_thread(self.app.push_screen, FormatScreen(info=full_info))
-            
             analyze_button.label = "Получение форматов..."
-            get_full_info(url)
+            self.get_full_video_info(url)
+
 
 class FormatScreen(Screen):
     def __init__(self, info: dict):
         super().__init__()
         self.info = info
         self.url = info.get("webpage_url")
-        self.video_formats, self.audio_formats = self.app.downloader.get_filtered_formats(info)
-        self.selected_format: VideoFormat | None = self.video_formats[0] if self.video_formats else None
-        self.best_audio: AudioFormat | None = self.audio_formats[0] if self.audio_formats else None
+        self.video_formats: list[VideoFormat] = []
+        self.audio_formats: list[AudioFormat] = []
+        self.selected_format: VideoFormat | None = None
+        self.best_audio: AudioFormat | None = None
         self.format_buttons: list[Button] = []
 
     def compose(self) -> ComposeResult:
@@ -102,6 +111,10 @@ class FormatScreen(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
+        self.video_formats, self.audio_formats = self.app.downloader.get_filtered_formats(self.info)
+        self.selected_format = self.video_formats[0] if self.video_formats else None
+        self.best_audio = self.audio_formats[0] if self.audio_formats else None
+
         format_list = self.query_one("#format_list")
         for f in self.video_formats:
             label = f.get_display_label(FFMPEG_AVAILABLE)
@@ -217,7 +230,6 @@ class DownloadScreen(Screen):
         self.post_message(DownloadComplete(success, message, path))
 
     def progress_hook(self, d: dict) -> None:
-        log_widget = self.query_one("#download_log")
         if d['status'] == 'downloading':
             percent_str = d.get('_percent_str', '0%').strip().replace('%', '')
             try:
@@ -227,8 +239,8 @@ class DownloadScreen(Screen):
                     playlist_prefix = f"[{d.get('playlist_index')}/{d.get('playlist_count')}] "
                 
                 log_line = f" > {playlist_prefix}Скачивание: {Path(d.get('filename')).name[:40]}... {percent_str:>5}%"
-                log_widget.clear()
-                log_widget.write(log_line)
+                self.query_one("#download_log").clear()
+                self.query_one("#download_log").write(log_line)
                 self.post_message(ProgressUpdate(progress, ""))
             except (ValueError, TypeError): pass
         elif d['status'] == 'finished':
@@ -292,7 +304,12 @@ class SettingsScreen(Screen):
 
 class DraxonApp(App):
     CSS_PATH = Path(__file__).parent.parent / "ui" / "interface.css"
-    SCREENS = {"main": MainScreen(), "settings": SettingsScreen()}
+    
+    SCREENS = {
+        "main": MainScreen,
+        "settings": SettingsScreen,
+    }
+    
     BINDINGS = [("q", "quit", "Выход"), ("s", "push_screen('settings')", "Настройки")]
     
     def __init__(self, config_manager: ConfigManager):

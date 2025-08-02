@@ -12,7 +12,7 @@ try:
     from core.config import ConfigManager
     from core.interface import DraxonApp
 except ImportError as e:
-    print(f"Ошибка: Не удалось импортировать необходимые компоненты: {e}", file=sys.stderr)
+    print(f"Ошибка: Не удалось импортирова ть необходимые компоненты: {e}", file=sys.stderr)
     print("Пожалуйста, убедитесь, что все зависимости установлены (`pip install --upgrade textual yt-dlp`)", file=sys.stderr)
     input("Нажмите Enter для выхода...")
     sys.exit(1)
