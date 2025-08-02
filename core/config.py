@@ -3,7 +3,11 @@ from pathlib import Path
 
 class ConfigManager:
     _CONFIG_FILE = Path.home() / ".draxon" / "config.json"
-    _DEFAULT_DOWNLOAD_PATH = Path.home() / "Downloads" / "Draxon"
+    _DEFAULT_CONFIG = {
+        "download_path": str(Path.home() / "Downloads" / "Draxon"),
+        "default_video_quality": "1080p", # 'best', '1080p', '720p'
+        "convert_audio_to_mp3": True
+    }
 
     def __init__(self):
         self._config = self._load()
@@ -11,24 +15,37 @@ class ConfigManager:
 
     @property
     def download_path(self) -> Path:
-        return Path(self._config.get("download_path", str(self._DEFAULT_DOWNLOAD_PATH)))
+        return Path(self._config.get("download_path"))
+
+    @property
+    def default_video_quality(self) -> str:
+        return self._config.get("default_video_quality")
+
+    @property
+    def convert_audio_to_mp3(self) -> bool:
+        return self._config.get("convert_audio_to_mp3")
 
     def _load(self) -> dict:
         if not self._CONFIG_FILE.exists():
-            return {"download_path": str(self._DEFAULT_DOWNLOAD_PATH)}
+            return self._DEFAULT_CONFIG.copy()
         
         try:
             with open(self._CONFIG_FILE, "r", encoding="utf-8") as f:
-                config = json.load(f)
-                if "download_path" not in config:
-                    config["download_path"] = str(self._DEFAULT_DOWNLOAD_PATH)
-                return config
+                user_config = json.load(f)
+            config = self._DEFAULT_CONFIG.copy()
+            config.update(user_config)
+            return config
         except (json.JSONDecodeError, IOError):
-            return {"download_path": str(self._DEFAULT_DOWNLOAD_PATH)}
+            return self._DEFAULT_CONFIG.copy()
 
-    def save(self) -> None:
+    def save(self):
         try:
             with open(self._CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(self._config, f, ensure_ascii=False, indent=4)
         except IOError as e:
             print(f"Не удалось сохранить конфигурацию: {e}")
+
+    def update_setting(self, key: str, value) -> None:
+        if key in self._config:
+            self._config[key] = value
+            self.save()

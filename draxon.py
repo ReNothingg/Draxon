@@ -8,8 +8,8 @@ from core.interface import DraxonApp
 def check_ffmpeg():
     if not shutil.which("ffmpeg"):
         print("⚠️  Внимание: ffmpeg не найден в системном PATH.", file=sys.stderr)
-        print("   Функционал будет ограничен форматами, не требующими слияния.", file=sys.stderr)
-        print("-" * 40, file=sys.stderr)
+        print("   Функционал конвертации в MP3 и слияния форматов будет недоступен.", file=sys.stderr)
+        print("-" * 60, file=sys.stderr)
 
 def main():
     config_dir = Path.home() / ".draxon"
