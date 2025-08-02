@@ -6,7 +6,8 @@ from textual.screen import Screen
 from textual.widgets import Header, Footer, Static, Input, Button, ProgressBar, Log, RadioSet, RadioButton, Checkbox, Label
 from textual import work, on
 from textual.message import Message
-from textual.css.stylesheet import Stylesheet, ParseError
+from textual.css.stylesheet import Stylesheet
+from textual.css.errors import CssPathError, ParseError
 
 from .config import ConfigManager
 from .downloader import Downloader
@@ -16,7 +17,7 @@ from .utils import open_folder
 FFMPEG_AVAILABLE = bool(shutil.which("ffmpeg"))
 
 class ProgressUpdate(Message):
-    def __init__(self, progress: float, log_line: str) -> None:
+    def __init__(self, progress: float | None, log_line: str) -> None:
         super().__init__()
         self.progress = progress
         self.log_line = log_line
@@ -290,6 +291,7 @@ class SettingsScreen(Screen):
         self.app.pop_screen()
 
 class DraxonApp(App):
+    CSS_PATH = Path(__file__).parent.parent / "ui" / "interface.css"
     SCREENS = {"main": MainScreen(), "settings": SettingsScreen()}
     BINDINGS = [("q", "quit", "Выход"), ("s", "push_screen('settings')", "Настройки")]
     
@@ -299,19 +301,6 @@ class DraxonApp(App):
         self.downloader = Downloader()
 
     def on_mount(self) -> None:
-        css_path = Path(__file__).parent.parent / "ui" / "interface.css"
-        new_stylesheet = Stylesheet()
-        try:
-            with open(css_path, "r", encoding="utf-8") as f:
-                new_stylesheet.read(f.read())
-            new_stylesheet.parse()
-        except (IOError, ParseError) as e:
-            self.exit(f"Ошибка загрузки или парсинга CSS: {e}")
-            return
-        
-        self.stylesheet.clear()
-        self.stylesheet.merge(new_stylesheet)
-
         self.push_screen("main")
 
     def action_open_download_folder(self, path: str):
