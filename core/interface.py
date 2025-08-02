@@ -6,6 +6,7 @@ from textual.screen import Screen
 from textual.widgets import Header, Footer, Static, Input, Button, ProgressBar, Log, RadioSet, RadioButton, Checkbox, Label
 from textual import work, on
 from textual.message import Message
+from textual.css.stylesheet import Stylesheet, ParseError
 
 from .config import ConfigManager
 from .downloader import Downloader
@@ -69,7 +70,6 @@ class MainScreen(Screen):
         if info.get('_type') == 'playlist':
             self.app.push_screen(PlaylistScreen(info=info))
         else:
-            # Для одиночного видео нужно получить полную информацию
             @work(exclusive=True, thread=True)
             def get_full_info(url: str):
                 full_info = self.app.downloader.get_video_info(url.replace('&list=', '&nolist='))
@@ -222,10 +222,11 @@ class DownloadScreen(Screen):
             try:
                 progress = float(percent_str)
                 playlist_prefix = ""
-                if d.get('playlist_count'):
+                if d.get('playlist_index') and d.get('playlist_count'):
                     playlist_prefix = f"[{d.get('playlist_index')}/{d.get('playlist_count')}] "
+                
                 log_line = f" > {playlist_prefix}Скачивание: {Path(d.get('filename')).name[:40]}... {percent_str:>5}%"
-                log_widget.clear() # Очищаем лог, чтобы не засорять его строками прогресса
+                log_widget.clear()
                 log_widget.write(log_line)
                 self.post_message(ProgressUpdate(progress, ""))
             except (ValueError, TypeError): pass
@@ -234,7 +235,7 @@ class DownloadScreen(Screen):
              self.post_message(ProgressUpdate(100, log_line))
 
     def on_progress_update(self, message: ProgressUpdate) -> None:
-        if message.progress: self.query_one("#progress_bar").update(progress=message.progress)
+        if message.progress is not None: self.query_one("#progress_bar").update(progress=message.progress)
         if message.log_line: self.query_one("#download_log").write_line(message.log_line)
 
     def on_download_complete(self, message: DownloadComplete) -> None:
@@ -280,7 +281,11 @@ class SettingsScreen(Screen):
     def save_settings(self):
         cfg = self.app.config_manager
         cfg.update_setting("download_path", self.query_one("#path_input").value)
-        cfg.update_setting("default_video_quality", self.query_one(RadioSet).pressed_button.id)
+        
+        pressed_button = self.query_one(RadioSet).pressed_button
+        if pressed_button:
+            cfg.update_setting("default_video_quality", pressed_button.id)
+        
         cfg.update_setting("convert_audio_to_mp3", self.query_one("#mp3_checkbox").value)
         self.app.pop_screen()
 
@@ -295,13 +300,18 @@ class DraxonApp(App):
 
     def on_mount(self) -> None:
         css_path = Path(__file__).parent.parent / "ui" / "interface.css"
+        new_stylesheet = Stylesheet()
         try:
             with open(css_path, "r", encoding="utf-8") as f:
-                css_data = f.read()
-            self.stylesheet.add_source(css_data, path=str(css_path))
-            self.stylesheet.parse()
-        except Exception as e:
+                new_stylesheet.read(f.read())
+            new_stylesheet.parse()
+        except (IOError, ParseError) as e:
             self.exit(f"Ошибка загрузки или парсинга CSS: {e}")
+            return
+        
+        self.stylesheet.clear()
+        self.stylesheet.merge(new_stylesheet)
+
         self.push_screen("main")
 
     def action_open_download_folder(self, path: str):
