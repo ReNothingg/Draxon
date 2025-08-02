@@ -1,17 +1,17 @@
 Screen {
-    background: #0c0c0c;
-    color: #e0e0e0;
+    background: #0d1117;
+    color: #c9d1d9;
     layout: vertical;
     align: center middle;
 }
 
-#main_container {
+#main_container, #format_container, #download_container {
     width: 80%;
-    max-width: 80;
+    max-width: 90;
     height: auto;
     padding: 2 4;
-    border: round #333;
-    background: #1a1a1a;
+    border: round #30363d;
+    background: #161b22;
 }
 
 #title {
@@ -24,16 +24,16 @@ Screen {
 #subtitle {
     content-align: center middle;
     width: 100%;
-    color: #888;
+    color: #8b949e;
     margin-bottom: 1;
 }
 
 #url_input {
     margin: 1 0;
-    border: tall #444;
+    border: tall #30363d;
 }
 #url_input:focus {
-    border: tall #007acc;
+    border: tall #58a6ff;
 }
 
 #analyze_button {
@@ -42,20 +42,11 @@ Screen {
 }
 
 #error_message {
-    color: #ff4444;
+    color: #f85149;
     text-align: center;
     width: 100%;
     height: 1;
     margin-top: 1;
-}
-
-#format_container {
-    width: 80%;
-    max-width: 90;
-    height: auto;
-    padding: 1 2;
-    border: round #333;
-    background: #1a1a1a;
 }
 
 #format_title {
@@ -66,8 +57,8 @@ Screen {
 
 #format_list {
     height: 12;
-    border: round #222;
-    background: #111;
+    border: round #30363d;
+    background: #0d1117;
     padding: 0 1;
 }
 
@@ -77,7 +68,7 @@ Screen {
 }
 
 .error_text {
-    color: #ff4444;
+    color: #f85149;
     width: 100%;
     text-align: center;
     margin-top: 1;
@@ -86,7 +77,7 @@ Screen {
 #audio_info {
     width: 100%;
     text-align: center;
-    color: #888;
+    color: #8b949e;
     margin-top: 1;
     height: auto;
 }
@@ -96,29 +87,22 @@ Screen {
     margin-top: 1;
 }
 
-#download_container {
-    width: 90%;
-    max-width: 100;
-    height: auto;
-    padding: 2 4;
-    border: round #333;
-    background: #1a1a1a;
-}
-
 #download_title {
     margin-bottom: 1;
+    width: 100%;
+    overflow: ellipsis;
 }
 
 #progress_bar {
     margin: 1 0;
-    background: #222;
-    color: #00aaff;
+    background: #30363d;
+    color: #58a6ff;
 }
 
 #download_log {
     height: 15;
-    border: round #222;
-    background: #111;
+    border: round #30363d;
+    background: #0d1117;
     margin-bottom: 1;
 }
 
