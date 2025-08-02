@@ -204,7 +204,6 @@ class DownloadScreen(Screen):
         self.app.pop_screen()
 
 class DraxonApp(App):
-    CSS_PATH = Path(__file__).parent.parent / "ui" / "interface.css"
     SCREENS = {"main": MainScreen()}
     BINDINGS = [("q", "quit", "Выход")]
     
@@ -214,4 +213,15 @@ class DraxonApp(App):
         self.downloader = Downloader()
 
     def on_mount(self) -> None:
+        css_path = Path(__file__).parent.parent / "ui" / "interface.css"
+        try:
+            with open(css_path, "r", encoding="utf-8") as f:
+                css_data = f.read()
+            self.stylesheet.add_source(css_data, path=str(css_path))
+            self.stylesheet.parse()
+        except IOError as e:
+            print(f"Не удалось загрузить файл стилей: {e}")
+        except Exception as e:
+            print(f"Ошибка при обработке CSS: {e}")
+
         self.push_screen("main")

@@ -90,7 +90,8 @@ Screen {
 #download_title {
     margin-bottom: 1;
     width: 100%;
-    overflow: ellipsis;
+    overflow-x: ellipsis;
+    overflow-y: hidden;
 }
 
 #progress_bar {
