@@ -5,7 +5,7 @@ class ConfigManager:
     _CONFIG_FILE = Path.home() / ".draxon" / "config.json"
     _DEFAULT_CONFIG = {
         "download_path": str(Path.home() / "Downloads" / "Draxon"),
-        "default_video_quality": "1080p", # 'best', '1080p', '720p'
+        "default_video_quality": "1080p",
         "convert_audio_to_mp3": True
     }
 
