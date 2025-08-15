@@ -1,3 +1,11 @@
-*/__pycache__/
-core/*.pyc
-core/*.pyo
+__pycache__/
+tests/
+draxon.egg-info/
+*.pyc
+*.pyo
+*.pyw
+*.pyz
+*.pyw
+*.pyz
+*.pyw
+*.pyz

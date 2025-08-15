@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "draxon"
+version = "1.0.0"
+authors = [{ name = "ReNothingg", email = "renothingg@gmail.com" }]
+description = "Скачивай видео откуда угодно. Без рекламы. Без лишнего. Только ты и контент."
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "textual[dev]>=0.60.0",
+    "yt-dlp>=2023.12.30",
+    "rich>=13.7.0",
+]
+
+[project.scripts]
+draxon = "draxon.app:main"
+
+[project.urls]
+"Homepage" = "https://renothingg.github.io/ReNothingg/"
+"Source Code" = "https://github.com/ReNothingg/draxon"
+"Bug Tracker" = "https://github.com/ReNothingg/draxon/issues"
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "W", "I", "C90", "N"]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
