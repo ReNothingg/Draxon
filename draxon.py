@@ -36,7 +36,7 @@ def main():
         print("\n--- КРИТИЧЕСКАЯ ОШИБКА ---", file=sys.stderr)
         traceback.print_exc()
         print("--------------------------", file=sys.stderr)
-        input("\nПрограмма завершилась с ошибкой. Нажмите Enter для выхода.")
+        input("\nНажмите Enter для выхода.")
         sys.exit(1)
 
 if __name__ == "__main__":

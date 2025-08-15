@@ -62,7 +62,7 @@ class Downloader:
 
     def download(self, url: str, download_path: Path, progress_hook, *,
                  video_format_id: str | None = None,
-                 audio_id: str | None = None,  # ИСПРАВЛЕНО: было audio_format_id
+                 audio_id: str | None = None,
                  playlist_quality: str | None = None,
                  audio_only: bool = False,
                  convert_to_mp3: bool = False):
@@ -79,8 +79,8 @@ class Downloader:
             ydl_opts['merge_output_format'] = 'mp4'
             ydl_opts['ignoreerrors'] = True
             ydl_opts['extract_flat'] = False
-        elif video_format_id and audio_id: # ИСПРАВЛЕНО: было audio_format_id
-            ydl_opts['format'] = f"{video_format_id}+{audio_id}" # ИСПРАВЛЕНО: было audio_format_id
+        elif video_format_id and audio_id:
+            ydl_opts['format'] = f"{video_format_id}+{audio_id}"
             ydl_opts['merge_output_format'] = 'mp4'
         elif video_format_id:
             ydl_opts['format'] = video_format_id
