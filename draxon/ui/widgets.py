@@ -47,7 +47,7 @@ class DownloadProgress(Static):
         self.eta_label = Label("ETA: -")
         self.speed_label = Label("Speed: -")
         self.size_label = Label("Size: -")
-        self.progress_bar = ProgressBar(total=100, show_eta=False, show_percent=True)
+        self.progress_bar = ProgressBar(total=100, show_eta=False, show_percentage=True)
 
     def compose(self) -> ComposeResult:
         yield self.progress_bar

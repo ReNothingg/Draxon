@@ -18,8 +18,9 @@ from textual.widgets import (
     Select,
     Static,
 )
+from textual.worker import Worker, WorkerState
 
-from draxon.core.downloader import Downloader
+from draxon.core.downloader import download_media, get_info
 from draxon.core.formats import FormatInfo, parse_formats
 from draxon.core.history import HistoryManager
 from draxon.core.settings import SettingsManager
@@ -27,7 +28,6 @@ from draxon.ui.widgets import (
     DownloadProgress,
     Footer,
     Header,
-    LogPanel,
     PathSelector,
     QueuePanel,
 )
@@ -41,7 +41,6 @@ class MainScreen(Screen):
         Binding("ctrl+o", "select_path", "Path", show=True),
         Binding("ctrl+h", "toggle_history", "History", show=True),
         Binding("enter", "start_download", "Start", show=False),
-        Binding("space", "pause_resume_download", "Pause", show=False),
         Binding("escape", "cancel_download", "Cancel", show=False),
     ]
 
@@ -64,7 +63,6 @@ class MainScreen(Screen):
         super().__init__()
         self.settings = SettingsManager(SETTINGS_FILE)
         self.history = HistoryManager(HISTORY_FILE)
-        self.downloader = Downloader()
         self.video_formats: List[FormatInfo] = []
         self.audio_formats: List[FormatInfo] = []
 
@@ -108,7 +106,7 @@ class MainScreen(Screen):
         self.query_one(Footer).set_status("Fetching info..." if fetching else "Ready.")
 
     def watch_is_downloading(self, downloading: bool) -> None:
-        self.query_one("#start-button").disabled = downloading
+        self.query_one("#start-button").disabled = downloading or not self.url_info
         self.query_one("#cancel-button").disabled = not downloading
         self.query_one("#check-button").disabled = downloading
         self.query_one("#url-input").disabled = downloading
@@ -121,10 +119,10 @@ class MainScreen(Screen):
             self.video_formats, self.audio_formats = parse_formats(info)
             self.update_format_selector()
             format_selector.disabled = False
-            self.query_one("#start-button").disabled = False
+            self.query_one("#start-button").disabled = self.is_downloading
             self.query_one(Footer).set_status(f"Found: {info.get('title', 'N/A')}")
         else:
-            format_selector.clear_options()
+            format_selector.set_options([])
             format_selector.disabled = True
             self.query_one("#start-button").disabled = True
 
@@ -161,7 +159,7 @@ class MainScreen(Screen):
         if options:
             format_selector.value = options[0][1]
 
-    @work(exclusive=True, group="url_fetch")
+    @work(exclusive=True, group="url_fetch", thread=True)
     def fetch_url_info(self) -> None:
         url = self.query_one("#url-input", Input).value
         if not url:
@@ -170,7 +168,7 @@ class MainScreen(Screen):
 
         self.is_fetching = True
         try:
-            info = self.downloader.get_info(url)
+            info = get_info(url)
             self.post_message(self.URLInfo(info))
         except Exception as e:
             self.post_message(self.URLInfo({}))
@@ -179,7 +177,11 @@ class MainScreen(Screen):
             self.is_fetching = False
 
     def on_main_screen_url_info(self, message: URLInfo) -> None:
-        self.url_info = message.info if message.info.get("formats") else None
+        if message.info and (message.info.get("formats") or message.info.get("_type") == "playlist"):
+            self.url_info = message.info
+        else:
+            self.url_info = None
+            self.query_one(Footer).set_status("Error: Could not get video formats.", "error")
 
     def progress_hook(self, d: Dict[str, Any]) -> None:
         self.post_message(self.DownloadUpdate(d))
@@ -194,11 +196,18 @@ class MainScreen(Screen):
         elif d["status"] == "finished":
             self.is_downloading = False
             progress_widget.reset()
-            footer.set_status(f"Finished downloading: {d.get('filename')}", "success")
+            footer.set_status(f"Finished: {Path(d.get('filename', '')).name}", "success")
         elif d["status"] == "error":
             self.is_downloading = False
             progress_widget.reset()
             footer.set_status("Download error.", "error")
+            
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.worker.name == "downloader":
+            if event.state == WorkerState.ERROR:
+                self.is_downloading = False
+                self.query_one(DownloadProgress).reset()
+                self.query_one(Footer).set_status(f"Worker error: {event.worker.error}", "error")
 
     def action_start_download(self) -> None:
         url = self.query_one("#url-input", Input).value
@@ -216,7 +225,7 @@ class MainScreen(Screen):
 
         ydl_opts: Dict[str, Any] = {
             "outtmpl": f"{download_path}/%(title)s.%(ext)s",
-            "noplaylist": True,
+            "noplaylist": self.url_info.get("_type") != "playlist",
         }
 
         if is_audio:
@@ -226,11 +235,19 @@ class MainScreen(Screen):
             ydl_opts["format"] = format_id
 
         self.query_one(Footer).set_status("Starting download...")
-        self.downloader.download(url, ydl_opts, self.progress_hook)
+        self.run_worker(
+            download_media,
+            url,
+            ydl_opts,
+            self.progress_hook,
+            name="downloader",
+            group="download",
+            exclusive=True,
+        )
 
     def action_cancel_download(self) -> None:
         if self.is_downloading:
-            self.downloader.cancel()
+            self.workers.cancel_group(self, "download")
             self.is_downloading = False
             self.query_one(DownloadProgress).reset()
             self.query_one(Footer).set_status("Download cancelled.", "warning")
