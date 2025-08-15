@@ -1,2 +1,3 @@
-textual
-yt-dlp
+textual 
+yt-dlp 
+tqdm
