@@ -21,7 +21,7 @@ DEFAULT_CONFIG = {
     "resume_download": True,
     "verbose": False,
     "log_to_file": False,
-    "log_file": "yt_downloader.log",
+    "log_file": "draxon.log",
     "parallel_download": False,
     "max_workers": 2
 }
