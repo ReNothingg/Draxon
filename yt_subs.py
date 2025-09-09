@@ -1,3 +1,5 @@
+# python3 -m pip install --upgrade --user openai-whisper yt-dlp youtube-transcript-api
+
 import re
 import argparse
 import os
